@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ready="0" data-api="0">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CART 决策树实验室</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============ 顶栏 ============ -->
+    <header id="topbar">
+      <div class="brand">
+        <div class="logo">⟐</div>
+        <div class="brand-text">
+          <h1>CART 决策树实验室</h1>
+          <p>基尼指数 · 预剪枝与代价复杂度剪枝 · 分裂回放与推理路径</p>
+        </div>
+      </div>
+      <div id="status-pill" data-state="boot"><span class="dot"></span><span id="status-text">初始化…</span></div>
+      <div class="top-actions">
+        <button id="btn-theme" class="btn ghost" title="切换明暗主题">◐ 亮色</button>
+        <button id="btn-export-tree" class="btn ghost" disabled title="将当前决策树图保存为 PNG">⬇ 导出树 PNG</button>
+        <button id="btn-export-json" class="btn ghost" disabled title="将本次训练完整结果保存为 JSON">⬇ 导出 JSON</button>
+      </div>
+    </header>
+
+    <div id="fatal-banner" class="hidden"></div>
+
+    <nav id="view-tabs" role="tablist">
+      <button class="view-tab active" data-view="lab" role="tab">实验台</button>
+      <button class="view-tab" data-view="explain" role="tab">方法说明</button>
+    </nav>
+
+    <div id="view-lab">
+
+      <main id="layout">
+
+        <!-- ============ 左栏：数据集 / 训练配置 / 对比配置 ============ -->
+        <aside class="col col-left">
+
+          <section class="card" id="card-dataset">
+            <header class="card-head">
+              <h2>数据集</h2>
+              <span class="badge" id="ds-count-badge">—</span>
+            </header>
+            <div class="card-body">
+              <dl class="kv" id="ds-summary">
+                <div class="kv-row"><dt>名称</dt><dd id="ds-name">—</dd></div>
+                <div class="kv-row"><dt>样本数</dt><dd id="ds-samples">—</dd></div>
+                <div class="kv-row"><dt>特征数</dt><dd id="ds-features">—</dd></div>
+                <div class="kv-row"><dt>类别数</dt><dd id="ds-classes">—</dd></div>
+                <div class="kv-row"><dt>来源</dt><dd><a id="ds-source" href="#" target="_blank" rel="noreferrer" title="在新窗口打开数据集文档">—</a></dd></div>
+              </dl>
+              <p id="ds-description" class="muted small">—</p>
+              <div class="chips" id="ds-feature-chips"></div>
+              <div class="chips" id="ds-class-chips"></div>
+            </div>
+          </section>
+
+          <section class="card" id="card-run">
+            <header class="card-head"><h2>训练配置</h2></header>
+            <div class="card-body">
+              <div class="field-row">
+                <label class="field" title="留空 = 不限制（0–12 的整数）">
+                  <span>最大深度</span>
+                  <input id="inp-max-depth" type="number" min="0" max="12" step="1" value="4" placeholder="不限制" />
+                </label>
+                <label class="field" title="每个叶节点的最小样本数（1–50）">
+                  <span>叶节点最小样本</span>
+                  <input id="inp-min-leaf" type="number" min="1" max="50" step="1" value="1" />
+                </label>
+              </div>
+              <div class="field-row">
+                <label class="field" title="划分的最小增益阈值 min_gain（≥ 0）">
+                  <span>最小增益</span>
+                  <input id="inp-min-gain" type="number" min="0" step="0.001" value="0" />
+                </label>
+                <label class="field" title="数据划分使用的随机种子">
+                  <span>随机种子</span>
+                  <input id="inp-seed" type="number" min="0" step="1" value="42" />
+                </label>
+              </div>
+              <label class="check" title="启用代价复杂度后剪枝（CCP）">
+                <input type="checkbox" id="chk-ccp" checked /> 启用代价复杂度剪枝（CCP）
+              </label>
+              <label class="field" title="留空 = 验证集自动选 α（手动指定须 ≥ 0）">
+                <span>剪枝强度 α</span>
+                <input id="inp-alpha" type="number" min="0" step="0.001" placeholder="自动选择" />
+              </label>
+              <button id="btn-run" class="btn primary block">▶ 运行训练</button>
+            </div>
+          </section>
+
+          <section class="card" id="card-compare-cfg">
+            <header class="card-head"><h2>对比配置</h2></header>
+            <div class="card-body">
+              <p class="muted small">对比三种变体：基线 CART（不限制深度）、预剪枝（深度 3 · 叶 ≥ 2）、代价复杂度剪枝（验证集自动选 α）。划分使用上方的随机种子与最小增益。</p>
+              <button id="btn-compare" class="btn ghost block">⚖ 运行对比</button>
+            </div>
+          </section>
+
+        </aside>
+
+        <!-- ============ 中栏：决策树 / 时间轴 / 节点详情 ============ -->
+        <section class="col col-main">
+
+          <section class="card" id="card-tree" data-result="0">
+            <header class="card-head">
+              <h2>决策树</h2>
+              <div class="head-tools">
+                <span class="muted small" id="tree-note">—</span>
+                <span class="muted small">点击节点查看划分细节</span>
+              </div>
+            </header>
+            <div class="chart-wrap">
+              <div id="chart-tree" class="chart"></div>
+              <div class="empty-overlay show" id="tree-empty">
+                <div class="empty-icon">⌥</div>
+                <p>尚无决策树</p>
+                <p class="muted small">选择参数并点击「运行训练」；<br/>构建过程可用下方时间轴逐帧回放。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="card-timeline">
+            <div class="tl-bar">
+              <div class="tl-track" id="tl-track" hidden>
+                <button id="tl-track-build" class="tl-track-btn" type="button" title="逐帧回放建树过程">建树</button>
+                <button id="tl-track-prune" class="tl-track-btn" type="button" title="浏览剪枝序列（每个 α 一棵树）">剪枝</button>
+              </div>
+              <div class="tl-buttons">
+                <button id="tl-first" class="btn icon" disabled title="回到起点">⏮</button>
+                <button id="tl-prev" class="btn icon" disabled title="上一步（←）">◀</button>
+                <button id="tl-play" class="btn icon" disabled title="播放 / 暂停（空格）">▶</button>
+                <button id="tl-next" class="btn icon" disabled title="下一步（→）">▶|</button>
+                <button id="tl-last" class="btn icon" disabled title="跳到最后">⏭</button>
+              </div>
+              <input id="tl-slider" type="range" min="0" max="0" value="0" disabled
+                     title="拖动以在帧序列间浏览" />
+              <span id="tl-pos" class="mono">0 / 0</span>
+              <span id="tl-event" class="badge ev">—</span>
+              <label class="tl-speed">速度
+                <select id="tl-speed">
+                  <option value="0.5">0.5×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="2">2×</option>
+                  <option value="4">4×</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <div class="duo">
+            <section class="card" id="card-node">
+              <header class="card-head">
+                <h2>节点详情</h2>
+                <span class="muted small">与时间轴 / 点击联动</span>
+              </header>
+              <div class="card-body">
+                <dl id="node-detail"></dl>
+                <p class="muted small" id="node-hint">回放或点击树上的节点，查看该节点的划分、基尼指数与增益。</p>
+              </div>
+            </section>
+            <section class="card" id="card-candidates">
+              <header class="card-head">
+                <h2>候选划分</h2>
+                <span class="muted small">横轴：加权基尼 · 最小者为选中划分</span>
+              </header>
+              <div class="chart-wrap cand">
+                <div id="chart-candidates" class="chart"></div>
+                <div class="empty-overlay show" id="candidates-empty"><p>选中节点后显示候选划分</p></div>
+              </div>
+            </section>
+          </div>
+
+        </section>
+
+        <!-- ============ 右栏：指标 / 分类指标 / PCA / 推理路径 ============ -->
+        <aside class="col col-right">
+
+          <section class="card" id="card-metrics">
+            <header class="card-head">
+              <h2>运行指标</h2>
+              <span class="badge" id="metrics-alpha">—</span>
+            </header>
+            <div class="card-body">
+              <dl id="metrics-kv"></dl>
+              <p class="muted small" id="metrics-hint">运行训练后显示训练 / 验证 / 测试准确率、树规模与耗时。</p>
+            </div>
+          </section>
+
+          <section class="card" id="card-classmetrics">
+            <header class="card-head">
+              <h2>分类指标</h2>
+              <label class="inline-filter">评估集
+                <select id="sel-eval-split">
+                  <option value="train">训练</option>
+                  <option value="val">验证</option>
+                  <option value="test" selected>测试</option>
+                </select>
+              </label>
+            </header>
+            <div class="card-body">
+              <div class="table-scroll">
+                <table class="data" id="tbl-classmetrics"></table>
+              </div>
+              <div class="chart-wrap conf">
+                <div id="chart-confusion" class="chart"></div>
+                <div class="empty-overlay show" id="confusion-empty"><p>混淆矩阵（真实 × 预测）</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="card-pca">
+            <header class="card-head">
+              <h2>PCA 投影</h2>
+              <span class="muted small" id="pca-note">—</span>
+            </header>
+            <div class="chart-wrap pca">
+              <div id="chart-pca" class="chart"></div>
+              <div class="empty-overlay show" id="pca-empty"><p>运行训练后显示 150 个样本的 PCA 投影</p></div>
+            </div>
+          </section>
+
+          <section class="card" id="card-paths">
+            <header class="card-head">
+              <h2>推理路径</h2>
+              <span class="muted small">单个样本的逐节点判定</span>
+            </header>
+            <div class="card-body">
+              <div class="chips" id="sample-list"></div>
+              <p class="muted small" id="paths-hint">运行训练后点击上方样本，查看它沿树走到叶节点的完整判定过程。</p>
+              <div id="path-steps"></div>
+            </div>
+          </section>
+
+        </aside>
+      </main>
+
+      <!-- ============ 对比实验结果 ============ -->
+      <section class="card" id="card-compare" data-open="0">
+        <header class="card-head">
+          <h2>对比实验结果</h2>
+          <span class="muted small">三种变体 · 同一划分下的剪枝曲线</span>
+        </header>
+        <div id="compare-empty">运行对比后，此处展示变体指标表与代价复杂度剪枝曲线（准确率与叶节点数随 α 变化）。</div>
+        <div class="card-body">
+          <p id="compare-meta" class="muted small"></p>
+          <div class="table-scroll">
+            <table class="data" id="tbl-variants"></table>
+          </div>
+          <div class="pane-head">
+            <span class="muted small">剪枝曲线：验证 / 训练准确率（左轴）与叶节点数（右轴）随 α 变化；虚线为选中的 α*</span>
+          </div>
+          <div id="chart-prune" class="chart comp"></div>
+        </div>
+      </section>
+
+    </div><!-- /view-lab -->
+
+    <!-- ============ 方法说明 ============ -->
+    <section id="view-explain" class="hidden">
+      <header class="explain-head">
+        <h2>CART 决策树的四个核心机制</h2>
+        <p class="explain-lead">CART（分类与回归树）用<strong>基尼指数</strong>衡量节点不纯度，在<strong>相邻取值中点</strong>上穷举阈值做二分裂，按<strong>停止条件</strong>递归生长，最后用<strong>代价复杂度剪枝</strong>在过拟合的满树与欠拟合的浅树之间，以验证集选出合适的复杂度。</p>
+      </header>
+
+      <div class="imp-grid">
+        <article class="imp">
+          <h3><span class="tag">1</span>基尼指数与加权基尼</h3>
+          <p>基尼指数表示从节点内随机抽两个样本、类别不一致的概率：纯节点为 0，三类均匀混合时为 2/3。分裂以「加权后基尼最小 / 增益最大」为准。</p>
+          <div class="formula">Gini(t) = 1 − Σ<sub>k</sub> p<sub>k</sub>²</div>
+          <div class="formula">Gini<sub>split</sub> = (n<sub>L</sub>/n)·Gini(t<sub>L</sub>) + (n<sub>R</sub>/n)·Gini(t<sub>R</sub>)</div>
+          <div class="formula">Gain = Gini(t) − Gini<sub>split</sub></div>
+          <p class="impact">Iris 根节点：Gini = 0.667；按「花瓣长度 ≤ 2.45」分裂后降至 0.333，增益 0.333</p>
+        </article>
+
+        <article class="imp">
+          <h3><span class="tag">2</span>阈值候选与高效扫描</h3>
+          <p>每个特征先排序，候选阈值取<strong>相邻不同取值的中点</strong>；排序一次后从左到右滚动维护左右计数，每个候选的加权基尼 O(1) 更新，避免对每个阈值重算。</p>
+          <div class="formula">t ∈ { (x<sub>i</sub> + x<sub>i+1</sub>)/2 | x<sub>i</sub> &lt; x<sub>i+1</sub> }</div>
+          <div class="formula">单节点代价 O(F · n log n)，F 为特征数</div>
+          <p class="impact">90 个训练样本、4 特征：全部节点共评估 301 个候选阈值</p>
+        </article>
+
+        <article class="imp">
+          <h3><span class="tag">3</span>递归停止条件（预剪枝）</h3>
+          <p>满足任一条件即不再分裂、标记为叶节点；叶节点的预测类别取该节点内样本最多的类。</p>
+          <ul class="limits">
+            <li>节点已纯：只有单一类别（reason = pure）</li>
+            <li>深度达到 max_depth（留空则不限制）</li>
+            <li>节点样本数不足以再分成两片叶</li>
+            <li>所有候选被 min_samples_leaf 禁止 → 无有效划分</li>
+            <li>最大增益 ≤ min_gain → 划分无收益</li>
+          </ul>
+        </article>
+
+        <article class="imp">
+          <h3><span class="tag">4</span>代价复杂度剪枝（CCP）</h3>
+          <p>把「子树 t 整体换成叶」带来的训练风险上升折算成每片叶的代价 α<sub>eff</sub>，每轮剪掉<strong>最弱链接</strong>（α<sub>eff</sub> 最小）的子树，得到 α 递增的嵌套子树序列。</p>
+          <div class="formula">R<sub>α</sub>(T) = R(T) + α·|T|，R(T) = Σ<sub>leaf</sub> (n<sub>t</sub>/n)·Gini(t)</div>
+          <div class="formula">α<sub>eff</sub>(t) = (R(t) − R(T<sub>t</sub>)) / (|T<sub>t</sub>| − 1)</div>
+          <p>训练准确率随剪枝单调不增，无法提示过拟合位置；因此用<strong>验证集</strong>在序列中选准确率最高的树（平局取叶更少者），α 也可手动指定。</p>
+          <p class="impact">Iris：基线 13 节点 → 剪枝后 7 节点，验证准确率不降</p>
+        </article>
+      </div>
+
+      <section class="card">
+        <header class="card-head"><h2>实验流程</h2><span class="muted small">与「实验台」页各步骤一一对应</span></header>
+        <div class="card-body">
+          <div class="flow">
+            <span class="step">加载 Iris</span><span class="arrow">→</span>
+            <span class="step">按种子分层划分 90/30/30</span><span class="arrow">→</span>
+            <span class="step">递归二分裂（记录帧）</span><span class="arrow">→</span>
+            <span class="step">CCP 剪枝序列</span><span class="arrow">→</span>
+            <span class="step">验证集选 α</span><span class="arrow">→</span>
+            <span class="step">三个子集评估 + PCA 投影</span>
+          </div>
+          <ul class="limits">
+            <li>数据划分与树的随机性完全由种子决定：同一种子逐位复现。</li>
+            <li>帧序列记录每次「选中划分 / 展开子树 / 标记叶节点」，可在时间轴回放建树过程。</li>
+            <li>测试集只参与最终评估，不参与建树与选 α，保证评估无偏。</li>
+          </ul>
+        </div>
+      </section>
+    </section>
+
+  </div>
+
+  <div id="toasts"></div>
+
+  <!-- 本地 ECharts（vendor/ 由工程提供；若缺失，main.js 将探测备用路径并提示） -->
+  <script src="vendor/echarts.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
