@@ -162,10 +162,11 @@ def fit(x, y, *, feature_names=None, class_names=None,
                 out["feature"] = node.feature
                 out["threshold"] = node.threshold
                 out["gain"] = node.gain
-                if node.left is None or node.right is None:
+                children = [c for c in (node.left, node.right) if c is not None]
+                if children:
+                    out["children"] = [build(c) for c in children]
+                if len(children) < 2:
                     out["pending"] = True
-                else:
-                    out["children"] = [build(node.left), build(node.right)]
             return out
         return build(0)
 
@@ -223,10 +224,15 @@ def fit(x, y, *, feature_names=None, class_names=None,
                 nodes[node_id] = node
                 if record:
                     frame("split", node, top, evaluated)
-                left_id = grow(indices[left_mask], depth + 1, 2 * node_id + 1)
-                right_id = grow(indices[~left_mask], depth + 1, 2 * node_id + 2)
-                node = replace(nodes[node_id], left=left_id, right=right_id)
-                nodes[node_id] = node
+                left_id = 2 * node_id + 1
+                right_id = 2 * node_id + 2
+                nodes[node_id] = replace(nodes[node_id], left=left_id)
+                grow(indices[left_mask], depth + 1, left_id)
+                if record:
+                    frame("expanded", nodes[node_id], top, evaluated)
+                nodes[node_id] = replace(nodes[node_id], left=left_id, right=right_id)
+                grow(indices[~left_mask], depth + 1, right_id)
+                node = nodes[node_id]
                 if record:
                     frame("expanded", node, top, evaluated)
                 return node_id
