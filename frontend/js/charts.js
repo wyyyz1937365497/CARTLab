@@ -241,7 +241,7 @@
     var isSel = selectedId !== null && selectedId !== undefined &&
       String(selectedId) === String(node.id);
     var pending = !!node.pending;
-    var internal = !pending && node.feature != null && node.threshold != null;
+    var internal = node.feature != null && node.threshold != null;
     var out = {
       name: '#' + node.id,
       id: node.id,
