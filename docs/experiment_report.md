@@ -226,7 +226,13 @@
 
 图 7　程序主界面：决策树、建树时间轴、节点候选划分、指标与混淆矩阵。
 
-前后端通过 pywebview 的单个 API 对象通信，算法结果序列化为 JSON，界面不重复计算。ECharts 与数据集随程序分发，无需网络。Linux 使用 Qt WebEngine；跨平台启动逻辑与打包配置预留了 Windows 的 Edge WebView2 分支。
+前后端通过 pywebview 的单个 API 对象通信，算法结果序列化为 JSON，界面不重复计算。ECharts 与数据集随程序分发，无需网络。Linux 使用 Qt WebEngine；Windows 使用 Edge WebView2。
+
+Windows 版由 PyInstaller 以 `--onedir --windowed` 方式打包，前端与数据集通过 `--add-data` 放入 `_internal`，运行时由 `Path(__file__).resolve().parents[1]` 定位资源，不依赖当前工作目录。构建脚本为 `scripts/build_windows.ps1`。在 Windows 11（10.0.26200）与 WebView2 Runtime 157.0.4341.60 上实测：目录体积约 51 MB，压缩后约 24 MB，双击 `CARTLab.exe` 直接进入界面，无需安装 Python、uv 或网络连接。
+
+![Windows 运行界面](figures/windows.png)
+
+图 8　Windows 11 下的打包程序：目录式发布包、Edge WebView2 渲染，功能与 Linux 版一致。
 
 ## 8　结论
 
@@ -235,12 +241,11 @@
 3. 代价复杂度后剪枝在 20 组划分上把叶节点数从 6.4 降到 3.45，验证准确率由 0.938 提升到 0.950，测试准确率保持在同一水平（0.940），且波动更小。
 4. 分裂分析显示：根节点用花瓣长度 2.45 分离 setosa；第二层用 5.05 区分 versicolor 与 virginica；剩余混合样本由花瓣宽度 1.65 处理。误分样本集中在花瓣长度 5.0 cm 附近的边界区域。
 5. 界面同时提供树结构、候选划分、混淆矩阵、剪枝曲线与逐样本推理路径，可用于课堂演示与结果复核。
+6. Windows 目录式发行包已在 Windows 11 + Edge WebView2 上启动验证，前端、数据集与算法均离线可用。
 
 ## 附：复现方式
 
-```sh
-uv run --locked pytest -q
-uv run --locked python scripts/run_experiments.py ./experiment_results
-```
+    uv run --locked pytest -q
+    uv run --locked python scripts/run_experiments.py ./experiment_results
 
-测试覆盖 Gini 计算、阈值搜索与暴力枚举的一致性、停止条件、叶样本数约束、推理路径一致性、剪枝序列单调性、混淆矩阵与指标计算，以及数据规模与划分。演示使用种子 42；20 组种子的逐次结果保存在 `03_TestSamples/expected_results/`。
+测试覆盖 Gini 计算、阈值搜索与暴力枚举的一致性、停止条件、叶样本数约束、推理路径一致性、剪枝序列单调性、混淆矩阵与指标计算，以及数据规模与划分。演示使用种子 42；20 组种子的逐次结果保存在 `06_TestSamples/`（`demo_run.json`、`seed_sweep.json`、`compare.json`）。

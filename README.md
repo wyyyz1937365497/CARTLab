@@ -15,7 +15,7 @@ uv run --locked --group linux python main.py
 .venv/bin/python main.py
 ```
 
-Linux 使用 Qt WebEngine；Windows 分支使用 Edge WebView2，打包脚本在迁移时补充。
+Linux 使用 Qt WebEngine；Windows 使用 Edge WebView2。Windows 打包见 `scripts/build_windows.ps1`：`uv sync --locked --group dev` 后用 PyInstaller 生成 `dist\CARTLab\CARTLab.exe`，运行环境需已安装 WebView2 Runtime（Windows 11 自带）。
 
 ## 使用
 

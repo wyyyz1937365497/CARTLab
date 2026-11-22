@@ -19,7 +19,7 @@ from PyQt6.QtWebEngineCore import QWebEnginePage
 
 ROOT = Path(__file__).resolve().parents[1]
 source = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'docs/experiment_report.md'
-output = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT.parent / 'CARTLab_Submission/02_Report/实验报告.pdf'
+output = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT.parent / 'CARTLab_Submission/03_Report/实验报告.pdf'
 source, output = source.resolve(), output.resolve()
 
 if not which('markdown'):
